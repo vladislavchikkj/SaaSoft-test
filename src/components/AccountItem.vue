@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import { useAccountStore } from "@/stores/accountStore";
-import type { Account, AccountType } from "@/types/account";
+import {
+  type Account,
+  type AccountType,
+  ACCOUNT_TYPE,
+  isAccountType,
+  ACCOUNT_FIELDS,
+  type AccountField
+} from "@/types/account";
 import { Trash2, User, Key, Hash, LayoutList } from "lucide-vue-next";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -29,10 +36,10 @@ const localLogin = ref(props.account.login);
 const localPassword = ref(props.account.password || "");
 const localType = ref<AccountType>(props.account.type);
 
-const errors = ref({
-  login: false,
-  password: false,
-  labels: false,
+const errors = ref<Record<AccountField, boolean>>({
+  [ACCOUNT_FIELDS.Login]: false,
+  [ACCOUNT_FIELDS.Password]: false,
+  [ACCOUNT_FIELDS.Labels]: false,
 });
 
 const isLoginInvalid = computed(() => {
@@ -40,7 +47,7 @@ const isLoginInvalid = computed(() => {
 });
 
 const isPasswordInvalid = computed(() => {
-  if (localType.value === "LDAP") return false;
+  if (localType.value === ACCOUNT_TYPE.Ldap) return false;
   return !localPassword.value || localPassword.value.length > MAX_FIELD;
 });
 
@@ -67,15 +74,19 @@ const saveIfValid = () => {
     id: props.account.id,
     type: localType.value,
     login: localLogin.value,
-    password: localType.value === "Local" ? localPassword.value : null,
+    password: localType.value === ACCOUNT_TYPE.Local ? localPassword.value : null,
     labels: processedLabels,
   });
 };
 
-const handleBlur = (field: keyof typeof errors.value) => {
-  if (field === "login") errors.value.login = isLoginInvalid.value;
-  if (field === "password") errors.value.password = isPasswordInvalid.value;
-  if (field === "labels") errors.value.labels = isLabelsInvalid.value;
+const handleBlur = (field: AccountField) => {
+  const validationMap: Record<AccountField, boolean> = {
+    [ACCOUNT_FIELDS.Login]: isLoginInvalid.value,
+    [ACCOUNT_FIELDS.Password]: isPasswordInvalid.value,
+    [ACCOUNT_FIELDS.Labels]: isLabelsInvalid.value,
+  };
+
+  errors.value[field] = validationMap[field];
 
   if (!errors.value[field]) {
     saveIfValid();
@@ -83,9 +94,12 @@ const handleBlur = (field: keyof typeof errors.value) => {
 };
 
 const handleTypeChange = (val: AcceptableValue) => {
-  if (typeof val !== "string") return;
-  localType.value = val as AccountType;
-  errors.value.password = false;
+  if (!isAccountType(val)) {
+    return;
+  }
+
+  localType.value = val;
+  errors.value[ACCOUNT_FIELDS.Password] = false;
   saveIfValid();
 };
 </script>
@@ -103,16 +117,16 @@ const handleTypeChange = (val: AcceptableValue) => {
           <div class="relative">
             <Input
               v-model="localLabels"
-              @blur="handleBlur('labels')"
+              @blur="handleBlur(ACCOUNT_FIELDS.Labels)"
               :maxlength="MAX_LABEL"
               placeholder="mark1; mark2"
               class="bg-slate-50"
               :class="{
-                'border-red-500 focus-visible:ring-red-500': errors.labels,
+                'border-red-500 focus-visible:ring-red-500': errors[ACCOUNT_FIELDS.Labels],
               }"
             />
           </div>
-          <p v-if="errors.labels" class="text-xs text-red-600 font-medium">
+          <p v-if="errors[ACCOUNT_FIELDS.Labels]" class="text-xs text-red-600 font-medium">
             Максимум {{ MAX_LABEL }} символов
           </p>
         </div>
@@ -131,8 +145,8 @@ const handleTypeChange = (val: AcceptableValue) => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="LDAP">LDAP</SelectItem>
-              <SelectItem value="Local">Local</SelectItem>
+              <SelectItem :value="ACCOUNT_TYPE.Ldap">LDAP</SelectItem>
+              <SelectItem :value="ACCOUNT_TYPE.Local">Local</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -145,7 +159,7 @@ const handleTypeChange = (val: AcceptableValue) => {
           </Label>
           <Input
             v-model="localLogin"
-            @blur="handleBlur('login')"
+            @blur="handleBlur(ACCOUNT_FIELDS.Login)"
             :maxlength="MAX_FIELD"
             class="bg-slate-50"
             :class="{
@@ -158,7 +172,7 @@ const handleTypeChange = (val: AcceptableValue) => {
         </div>
 
         <div class="md:col-span-2 space-y-2">
-          <template v-if="localType === 'Local'">
+          <template v-if="localType === ACCOUNT_TYPE.Local">
             <Label
               class="text-xs font-bold text-slate-600 uppercase flex items-center gap-1"
             >
@@ -166,7 +180,7 @@ const handleTypeChange = (val: AcceptableValue) => {
             </Label>
             <Input
               v-model="localPassword"
-              @blur="handleBlur('password')"
+              @blur="handleBlur(ACCOUNT_FIELDS.Password)"
               type="password"
               :maxlength="MAX_FIELD"
               class="bg-slate-50"
@@ -181,12 +195,14 @@ const handleTypeChange = (val: AcceptableValue) => {
               Введите пароль
             </span>
           </template>
-          <div
-            v-else
-            class="h-10 flex items-center justify-center bg-slate-100 rounded-md border border-slate-200 mt-6 md:mt-0"
-          >
-            <span class="text-xs text-slate-400 font-medium">Не требуется</span>
-          </div>
+          <template v-else>
+            <Label class="text-xs font-bold opacity-0 flex items-center gap-1">
+              <Key class="w-3 h-3" />
+            </Label>
+            <div class="h-10 flex items-center justify-center bg-slate-100 rounded-md border border-slate-200">
+              <span class="text-xs text-slate-400 font-medium">Пороль не требуется</span>
+            </div>
+          </template>
         </div>
 
         <div

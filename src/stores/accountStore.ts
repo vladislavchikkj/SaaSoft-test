@@ -1,10 +1,11 @@
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
-import type { Account } from "@/types/account";
+import { type Account,  ACCOUNT_TYPE } from "@/types/account";
 
+const STORE_ID = "accounts";
 const STORAGE_KEY = "accounts_data";
 
-export const useAccountStore = defineStore("accounts", () => {
+export const useAccountStore = defineStore(STORE_ID, () => {
   const initFromStorage = (): Account[] => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -20,7 +21,7 @@ export const useAccountStore = defineStore("accounts", () => {
     accounts.value.push({
       id: crypto.randomUUID(),
       labels: [],
-      type: "Local",
+      type: ACCOUNT_TYPE.Local,
       login: "",
       password: "",
     });
@@ -36,7 +37,7 @@ export const useAccountStore = defineStore("accounts", () => {
     );
     if (index === -1) return;
 
-    if (updatedAccount.type === "LDAP") {
+    if (updatedAccount.type === ACCOUNT_TYPE.Ldap) {
       updatedAccount.password = null;
     }
 
